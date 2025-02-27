@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cambodia Salary Tax Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background-image: url('BackgroundMoney.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            padding: 30px;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h2 { margin-bottom: 20px; }
+        label {
+            font-weight: bold;
+            display: block;
+            margin: 10px 0 5px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            text-align: right;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            margin-top: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .calculate-btn { background-color: #4CAF50; color: white; }
+        .calculate-btn:hover { background-color: #45a049; }
+        .reset-btn { background-color: #f44336; color: white; }
+        .reset-btn:hover { background-color: #d32f2f; }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e6f7ff;
+            border: 1px solid #99ccff;
+            border-radius: 5px;
+            font-size: 18px;
+            display: none;
+        }
+        .error-message {
+            color: red;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Cambodia Salary Tax Calculator</h2>
+        <form id="tax-form">
+            <label for="salary">Monthly Salary (KHR):</label>
+            <input type="text" id="salary" name="salary" min="0" required oninput="formatNumber('salary')">
+            <div id="salary-error" class="error-message">Please enter a valid salary.</div>
+
+            <label for="salary-usd">Monthly Salary ($):</label>
+            <input type="text" id="salary-usd" name="salary-usd" min="0" oninput="formatNumber('salary-usd')">
+            <div id="salary-usd-error" class="error-message">Please enter a valid salary in USD.</div>
+
+            <label for="dependents">Number of Dependents:</label>
+            <input type="text" id="dependents" name="dependents" min="0" required oninput="formatNumber('dependents')">
+            <div id="dependents-error" class="error-message">Please enter a valid number of dependents.</div>
+
+            <button type="button" class="calculate-btn" onclick="calculateTax()">Calculate Tax</button>
+            <button type="reset" class="reset-btn" onclick="resetForm()">Reset</button>
+        </form>
+        <div id="result" class="result">
+            <strong>Your monthly tax liability is: </strong>
+            <span id="tax-amount-khr"></span> KHR / <span id="tax-amount-usd"></span> USD
+        </div>
+    </div>
+
+    <script>
+        const exchangeRate = 4000; // 1 USD = 4000 KHR (fixed rate)
+
+        // Format number with commas for thousands and two decimal places
+        function formatNumber(fieldId) {
+            let field = document.getElementById(fieldId);
+            let value = field.value.replace(/,/g, ''); // Remove existing commas
+            if (!value) return;
+
+            // Format number with commas and no decimal places
+            let formattedValue = parseFloat(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            field.value = formattedValue;
+        }
+
+        function calculateTax() {
+            let salaryKHR = parseFloat(document.getElementById('salary').value.replace(/,/g, ''));
+            let salaryUSD = parseFloat(document.getElementById('salary-usd').value.replace(/,/g, ''));
+            let dependents = parseInt(document.getElementById('dependents').value.replace(/,/g, ''));
+            let salaryError = document.getElementById('salary-error');
+            let salaryUSDError = document.getElementById('salary-usd-error');
+            let dependentsError = document.getElementById('dependents-error');
+
+            // Validate Inputs
+            let valid = true;
+            if ((isNaN(salaryKHR) || salaryKHR < 0) && (isNaN(salaryUSD) || salaryUSD < 0)) {
+                salaryError.style.display = 'block';
+                salaryUSDError.style.display = 'block';
+                valid = false;
+            } else {
+                salaryError.style.display = 'none';
+                salaryUSDError.style.display = 'none';
+            }
+            if (isNaN(dependents) || dependents < 0) {
+                dependentsError.style.display = 'block';
+                valid = false;
+            } else {
+                dependentsError.style.display = 'none';
+            }
+            if (!valid) return;
+
+            // If salary in USD is provided, convert it to KHR
+            if (salaryUSD > 0) {
+                salaryKHR = salaryUSD * exchangeRate;
+            }
+
+            // Tax Calculation
+            let deductionPerDependent = 150000;
+            let taxableIncome = Math.max(0, salaryKHR - (dependents * deductionPerDependent));
+
+            const taxBrackets = [
+                { limit: 1300000, rate: 0.00 },
+                { limit: 2000000, rate: 0.05 },
+                { limit: 8500000, rate: 0.10 },
+                { limit: 12500000, rate: 0.15 },
+                { limit: 20000000, rate: 0.20 },
+                { limit: Infinity, rate: 0.30 }
+            ];
+
+            let taxDue = 0;
+            let previousLimit = 0;
+
+            for (let i = 0; i < taxBrackets.length; i++) {
+                let { limit, rate } = taxBrackets[i];
+                if (taxableIncome > previousLimit) {
+                    let taxableAmount = Math.min(taxableIncome, limit) - previousLimit;
+                    taxDue += taxableAmount * rate;
+                    previousLimit = limit;
+                } else {
+                    break;
+                }
+            }
+
+            // Format tax amounts with commas and two decimal places
+            let formattedTaxDueKHR = taxDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            let formattedTaxDueUSD = (taxDue / exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            document.getElementById('tax-amount-khr').innerText = formattedTaxDueKHR;
+            document.getElementById('tax-amount-usd').innerText = formattedTaxDueUSD;
+            document.getElementById('result').style.display = 'block';
+        }
+
+        function resetForm() {
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('salary-error').style.display = 'none';
+            document.getElementById('salary-usd-error').style.display = 'none';
+            document.getElementById('dependents-error').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
